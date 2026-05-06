@@ -1,75 +1,104 @@
 defmodule Gimnasio do
-  def crear_socio(socios, cedula, nombre, edad) do
-    if Map.has_key?(socios, cedula) do
-      {:error, :cedula_duplicada}
-    else
-      case Socio.nuevo(cedula, nombre, edad) do
-        {:ok, socio} -> {:ok, Map.put(socios, cedula, socio)}
-        {:error, motivo} -> {:error, motivo}
-      end
+  def agregar_socio(socios, cedula, nombre, edad) do
+    case Socio.nuevo(nombre, edad) do
+      {:ok, socio} ->
+        if Map.has_key?(socios, cedula) do
+          {:error, :cedula_duplicada}
+        else
+          nuevos = Map.put(socios, cedula, socio)
+          GestionArchivos.guardar_datos(nuevos)
+          {:ok, nuevos}
+        end
+
+      error -> error
+    end
+  end
+
+  def actualizar_socio(socios, cedula, nombre, edad) do
+    case Map.get(socios, cedula) do
+      nil ->
+        {:error, :no_encontrado}
+
+      socio ->
+        actualizado = %{socio | nombre: nombre, edad: edad}
+        nuevos = Map.put(socios, cedula, actualizado)
+        GestionArchivos.guardar_datos(nuevos)
+        {:ok, nuevos}
     end
   end
 
   def eliminar_socio(socios, cedula) do
     if Map.has_key?(socios, cedula) do
-      {:ok, Map.delete(socios, cedula)}
+      nuevos = Map.delete(socios, cedula)
+      GestionArchivos.guardar_datos(nuevos)
+      {:ok, nuevos}
     else
-      {:error, :socio_no_encontrado}
-    end
-  end
-
-  def buscar_socio(socios, cedula) do
-    case Map.get(socios, cedula) do
-      nil -> {:error, :socio_no_encontrado}
-      socio -> {:ok, socio}
+      {:error, :no_encontrado}
     end
   end
 
   def inscribir_clase(socios, cedula, clase) do
-    case buscar_socio(socios, cedula) do
-      {:ok, socio} ->
-        case Socio.inscribir_clase(socio, clase) do
-          {:ok, socio_actualizado} -> {:ok, Map.put(socios, cedula, socio_actualizado)}
-          {:error, motivo} -> {:error, motivo}
-        end
+    case Map.get(socios, cedula) do
+      nil ->
+        {:error, :no_encontrado}
 
-      {:error, motivo} ->
-        {:error, motivo}
+      socio ->
+        case Socio.inscribir_clase(socio, clase) do
+          {:ok, actualizado} ->
+            nuevos = Map.put(socios, cedula, actualizado)
+            GestionArchivos.guardar_datos(nuevos)
+            {:ok, nuevos}
+
+          error -> error
+        end
     end
   end
 
   def desinscribir_clase(socios, cedula, clase) do
-    case buscar_socio(socios, cedula) do
-      {:ok, socio} ->
+    case Map.get(socios, cedula) do
+      nil ->
+        {:error, :no_encontrado}
+
+      socio ->
         case Socio.desinscribir_clase(socio, clase) do
-          {:ok, socio_actualizado} -> {:ok, Map.put(socios, cedula, socio_actualizado)}
-          {:error, motivo} -> {:error, motivo}
+          {:ok, actualizado} ->
+            nuevos = Map.put(socios, cedula, actualizado)
+            GestionArchivos.guardar_datos(nuevos)
+            {:ok, nuevos}
+
+          error ->
+            error
         end
-
-      {:error, motivo} ->
-        {:error, motivo}
     end
   end
 
+  def obtener_socio(socios, cedula) do
+    case Map.get(socios, cedula) do
+      nil -> {:error, :no_encontrado}
+      socio -> {:ok, socio}
+    end
+  end
+
+  def socios_por_clase(socios, clase) do
+    resultado =
+      socios
+      |> Map.values()
+      |> Enum.filter(fn socio -> Socio.tiene_clase?(socio, clase) end)
+
+    {:ok, resultado}
+  end
+
+  def clases_de_socio(socios, cedula) do
+    case Map.get(socios, cedula) do
+      nil ->
+        {:error, :no_encontrado}
+
+      socio ->
+        {:ok, socio.clases}
+    end
+  end
   def listar_socios(socios) do
-    lista = Map.values(socios)
-    |> Enum.sort_by(fn socio -> socio.cedula end)
-
-    {:ok, lista}
+    {:ok, Map.values(socios)}
   end
 
-  def listar_socios_clase(socios, clase) do
-    lista = Map.values(socios)
-    |> Enum.filter(fn socio -> Socio.tiene_clase?(socio, clase) end)
-    |> Enum.sort_by(fn socio -> socio.nombre end)
-
-    {:ok, lista}
-  end
-
-  def listar_clases_socio(socios, cedula) do
-    case buscar_socio(socios, cedula) do
-      {:ok, socio} -> {:ok, socio.clases}
-      {:error, motivo} -> {:error, motivo}
-    end
-  end
 end
